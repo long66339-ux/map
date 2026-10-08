@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>臺南市廢棄物非法棄置列管場址與 YouBike 整合地圖</title>
+    <title>臺南市廢棄物非法棄置列管場址地圖</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <style>
@@ -29,7 +29,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         header h1 {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 600;
         }
         .controls {
@@ -37,9 +37,9 @@
             gap: 10px;
         }
         .btn {
-            background-color: #334155;
+            background-color: #dc2626;
             color: white;
-            border: 1px solid #475569;
+            border: 1px solid #b91c1c;
             padding: 6px 12px;
             border-radius: 6px;
             cursor: pointer;
@@ -47,20 +47,12 @@
             transition: background 0.2s;
         }
         .btn:hover {
-            background-color: #475569;
-        }
-        .btn.active-waste {
-            background-color: #dc2626;
-            border-color: #b91c1c;
-        }
-        .btn.active-bike {
-            background-color: #16a34a;
-            border-color: #15803d;
+            opacity: 0.9;
         }
         .btn.inactive {
             background-color: #64748b;
             border-color: #475569;
-            opacity: 0.7;
+            opacity: 0.6;
         }
         #map {
             flex: 1;
@@ -86,17 +78,15 @@
         .legend-item {
             display: flex;
             align-items: center;
-            margin-bottom: 4px;
         }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>臺南市環境與公共運輸地理資訊系統</h1>
+        <h1>臺南市廢棄物非法棄置列管場址地圖</h1>
         <div class="controls">
-            <button id="btn-waste" class="btn active-waste" onclick="toggleLayer('waste')">非法棄置列管場址</button>
-            <button id="btn-bike" class="btn active-bike" onclick="toggleLayer('bike')">YouBike 站點</button>
+            <button id="btn-waste" class="btn" onclick="toggleLayer()">切換列管場址顯示</button>
         </div>
     </header>
 
@@ -105,9 +95,9 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
-        // 1. 設定合理的初始中心點 (臺南市政府永華市政中心附近) 與縮放層級
-        const tainanCenter = [22.9935, 120.1855];
-        const initialZoom = 12;
+        // 1. 設定合理的初始中心點 (臺南市中心) 與縮放層級
+        const tainanCenter = [23.05, 120.20];
+        const initialZoom = 11;
 
         const map = L.map('map').setView(tainanCenter, initialZoom);
 
@@ -119,9 +109,8 @@
 
         // 建立圖層群組
         const wasteLayerGroup = L.layerGroup().addTo(map);
-        const bikeLayerGroup = L.layerGroup().addTo(map);
 
-        // 3. 臺南市廢棄物非法棄置列管場址資料集 (對應 data.gov.tw/dataset/173490 相關格式與欄位)
+        // 3. 臺南市廢棄物非法棄置列管場址資料集 (對應開放資料集格式)
         const illegalWasteData = [
             {
                 name: "安南區顯宮段非法棄置場址",
@@ -188,112 +177,25 @@
             });
         }
 
-        // 4. 串接 YouBike 即時資料 API
-        async function loadYouBikeData() {
-            try {
-                const response = await fetch('https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json');
-                const data = await response.json();
-
-                // 篩選出臺南市相關站點（若 API 資料集包含多縣市）
-                const tainanStations = data.filter(station => 
-                    (station.sarea && station.sarea.includes('臺南')) || 
-                    (station.ar && station.ar.includes('臺南'))
-                );
-                
-                const stationsToDisplay = tainanStations.length > 0 ? tainanStations : data.slice(0, 60);
-
-                stationsToDisplay.forEach(station => {
-                    const lat = station.lat || station.latitude;
-                    const lng = station.lng || station.longitude;
-                    const name = station.sna || station.name_zh;
-                    const total = station.tot || station.total;
-                    const available = station.sbi || station.available_rent_bikes;
-                    const empty = station.bemp || station.available_return_bikes;
-
-                    if (lat && lng) {
-                        const bikeIcon = L.divIcon({
-                            className: 'custom-bike-marker',
-                            html: '<div style="background-color: #16a34a; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 6px rgba(0,0,0,0.4);"></div>',
-                            iconSize: [14, 14],
-                            iconAnchor: [7, 7]
-                        });
-
-                        const marker = L.marker([lat, lng], { icon: bikeIcon });
-                        marker.bindPopup(`
-                            <div style="min-width: 190px; font-size: 0.9rem;">
-                                <h3 style="color: #15803d; margin-bottom: 6px; font-size: 1rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px;">🚲 ${name}</h3>
-                                <p style="margin: 4px 0;"><strong>總車位數：</strong>${total}</p>
-                                <p style="margin: 4px 0; color: #0284c7;"><strong>可借車輛：</strong>${available} 輛</p>
-                                <p style="margin: 4px 0; color: #d97706;"><strong>可還空位：</strong>${empty} 位</p>
-                            </div>
-                        `);
-                        bikeLayerGroup.addLayer(marker);
-                    }
-                });
-            } catch (error) {
-                console.error('無法即時載入 YouBike 資料，啟用備用示範點：', error);
-                const fallbackBikes = [
-                    { name: "YouBike 2.0 - 臺南火車站（前站）", lat: 22.9972, lng: 120.2126, tot: 40, sbi: 12, bep: 28 },
-                    { name: "YouBike 2.0 - 成功大學（圖書館）", lat: 22.9984, lng: 120.2195, tot: 30, sbi: 7, bep: 23 },
-                    { name: "YouBike 2.0 - 赤崁樓", lat: 22.9998, lng: 120.2007, tot: 25, sbi: 14, bep: 11 },
-                    { name: "YouBike 2.0 - 臺南市政府", lat: 22.9930, lng: 120.1850, tot: 35, sbi: 20, bep: 15 }
-                ];
-                fallbackBikes.forEach(station => {
-                    const bikeIcon = L.divIcon({
-                        className: 'custom-bike-marker',
-                        html: '<div style="background-color: #16a34a; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 6px rgba(0,0,0,0.4);"></div>',
-                        iconSize: [14, 14],
-                        iconAnchor: [7, 7]
-                    });
-                    const marker = L.marker([station.lat, station.lng], { icon: bikeIcon });
-                    marker.bindPopup(`
-                        <div style="min-width: 190px; font-size: 0.9rem;">
-                            <h3 style="color: #15803d; margin-bottom: 6px; font-size: 1rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px;">🚲 ${station.name}</h3>
-                            <p style="margin: 4px 0;"><strong>總車位數：</strong>${station.tot}</p>
-                            <p style="margin: 4px 0; color: #0284c7;"><strong>可借車輛：</strong>${station.sbi} 輛</p>
-                            <p style="margin: 4px 0; color: #d97706;"><strong>可還空位：</strong>${station.bep} 位</p>
-                        </div>
-                    `);
-                    bikeLayerGroup.addLayer(marker);
-                });
+        // 4. 圖層開關切換邏輯
+        function toggleLayer() {
+            const btn = document.getElementById('btn-waste');
+            if (map.hasLayer(wasteLayerGroup)) {
+                map.removeLayer(wasteLayerGroup);
+                btn.classList.add('inactive');
+            } else {
+                map.addLayer(wasteLayerGroup);
+                btn.classList.remove('inactive');
             }
         }
 
-        // 5. 圖層開關切換邏輯
-        function toggleLayer(type) {
-            if (type === 'waste') {
-                const btn = document.getElementById('btn-waste');
-                if (map.hasLayer(wasteLayerGroup)) {
-                    map.removeLayer(wasteLayerGroup);
-                    btn.classList.remove('active-waste');
-                    btn.classList.add('inactive');
-                } else {
-                    map.addLayer(wasteLayerGroup);
-                    btn.classList.remove('inactive');
-                    btn.classList.add('active-waste');
-                }
-            } else if (type === 'bike') {
-                const btn = document.getElementById('btn-bike');
-                if (map.hasLayer(bikeLayerGroup)) {
-                    map.removeLayer(bikeLayerGroup);
-                    btn.classList.remove('active-bike');
-                    btn.classList.add('inactive');
-                } else {
-                    map.addLayer(bikeLayerGroup);
-                    btn.classList.remove('inactive');
-                    btn.classList.add('active-bike');
-                }
-            }
-        }
-
-        // 6. 建立地圖圖例
+        // 5. 建立地圖圖例
         const legend = L.control({position: 'bottomright'});
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'legend');
             div.innerHTML = `
                 <strong style="font-size: 0.9rem; border-bottom: 1px solid #ccc; display: block; margin-bottom: 6px;">圖例說明</strong>
                 <div class="legend-item"><i style="background: #dc2626;"></i> 廢棄物非法棄置列管場址</div>
-                <div class="legend-item"><i style="background: #16a34a;"></i> YouBike 站點即時資訊</div>
             `;
             return div;
         };
@@ -301,7 +203,6 @@
 
         // 初始化載入
         loadWasteMarkers();
-        loadYouBikeData();
     </script>
 </body>
 </html>
